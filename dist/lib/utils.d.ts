@@ -1,0 +1,92 @@
+/** Returns `true` for `null`, `undefined`, an empty/whitespace string, or a non-finite number. */
+export declare const isEmpty: (value: string | number | null | undefined) => boolean;
+/** Returns `true` if `value` is one of the {@link IdentifierType} enum values. */
+export declare const isIdentifierType: (value: unknown) => boolean;
+/**
+ * Returns `true` if `value` is a valid object identifier kind (`object_id` or
+ * `cio_object_id`). Objects use a different id vocabulary than people, so this
+ * is intentionally separate from {@link isIdentifierType}.
+ */
+export declare const isObjectIdType: (value: unknown) => value is "object_id" | "cio_object_id";
+/**
+ * Build a URL query string from a map of parameters.
+ *
+ * `null` and `undefined` values are omitted (so optional params disappear
+ * rather than serializing as empty). Keys and values are URL-encoded. Returns
+ * a leading-`?` string (e.g. `?a=1&b=2`) when at least one param is present,
+ * or an empty string when none are.
+ */
+export declare const buildQueryString: (params: Record<string, string | number | boolean | null | undefined>) => string;
+/**
+ * Minimal response shape attached to a {@link CustomerIORequestError}. Replaces
+ * the previous `http.IncomingMessage` so the public error type stays portable
+ * across runtimes that don't expose Node's stream-based response object.
+ */
+export interface ResponseLike {
+    statusCode: number;
+    headers: Record<string, string>;
+    ok: boolean;
+}
+/**
+ * Thrown when the Customer.io API responds with a non-2xx status.
+ *
+ * The error message is derived from the API response body when possible. The
+ * raw status code, response, and body are exposed for programmatic handling
+ * (e.g. retry on 5xx, ignore on 404).
+ *
+ * @remarks
+ * This is only thrown for HTTP responses with a non-2xx status. Transport-level
+ * failures (DNS, connection reset, refused) and timeouts are surfaced as the
+ * native `fetch` errors — `TypeError('fetch failed')` (with the underlying
+ * cause on `.cause`) and `DOMException('TimeoutError')` respectively — not as a
+ * `CustomerIORequestError`.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   await cio.identify('123', { email: 'a@example.com' });
+ * } catch (err) {
+ *   if (err instanceof CustomerIORequestError && err.statusCode === 404) {
+ *     // customer not found, fall through
+ *   } else {
+ *     throw err;
+ *   }
+ * }
+ * ```
+ */
+export declare class CustomerIORequestError extends Error {
+    /** HTTP status code returned by the API. */
+    statusCode: number;
+    /** Portable response metadata ({@link ResponseLike}: status, lowercased headers, `ok`). */
+    response: ResponseLike;
+    /** The raw response body as a string. May be empty. */
+    body: string;
+    static composeMessage(json: Record<string, any> | null): string;
+    constructor(json: Record<string, any> | null, statusCode: number, response: ResponseLike, body: string);
+}
+export declare function pickDefined<T extends Record<string, unknown>>(source: T, keys: ReadonlyArray<keyof T>): Partial<T>;
+/**
+ * Thrown synchronously by SDK methods when a required parameter is missing.
+ *
+ * The `message` is always `"<paramName> is required"`.
+ */
+export declare class MissingParamError extends Error {
+    constructor(param: string);
+}
+/** What a {@link KeyCapabilityError} says the key can't do. */
+export type KeyCapability = 'track' | 'transactional';
+/**
+ * Thrown by {@link CustomerIO} when its key can't do what a method asks.
+ *
+ * Thrown before the request when the key's type rules it out (a public `pk_`
+ * key can't send transactional messages). Otherwise the server's 401 or 403 is
+ * rethrown as this error, with the original {@link CustomerIORequestError} on
+ * `cause`.
+ */
+export declare class KeyCapabilityError extends Error {
+    /** What the key can't do. */
+    capability: KeyCapability;
+    /** The HTTP status, when the server refused the key. */
+    statusCode?: number;
+    constructor(capability: KeyCapability, message: string, cause?: CustomerIORequestError);
+}
